@@ -1,7 +1,7 @@
 import copy
 import json
-import logging
 import os
+import re
 import select
 import shutil
 import signal
@@ -12,11 +12,13 @@ from typing import Any, Optional
 
 import requests
 import yaml
+from assemblyline_core.server_base import ServerBase
+
 from assemblyline.common.digests import get_sha256_for_file
 from assemblyline.common.str_utils import StringTable
+from assemblyline.odm import SHA256_REGEX as SHA256_REGEX_PATTERN
 from assemblyline.odm.messages.task import Task as ServiceTask
 from assemblyline.odm.models.service import Service
-from assemblyline_core.server_base import ServerBase
 
 STATUSES = StringTable('STATUSES', [
     ('INITIALIZING', 0),
@@ -36,7 +38,7 @@ SUPPORTED_API = 'v1'
 DEFAULT_REQUEST_TIMEOUT = int(os.environ.get("SERVICE_CLIENT_DEFAULT_REQUEST_TIMEOUT", 180))
 TASK_REQUEST_TIMEOUT = int(os.environ.get('TASK_REQUEST_TIMEOUT', 30))
 FILE_REQUEST_TIMEOUT = int(os.environ.get('FILE_REQUEST_TIMEOUT', 180))
-
+SHA256_REGEX = re.compile(SHA256_REGEX_PATTERN)
 
 # The number of tasks a service will complete before stopping, letting the environment start a new container.
 # By default there is no limit, but this lets the orchestration environment set one
@@ -365,6 +367,12 @@ class TaskHandler(ServerBase):
         return task
 
     def download_file(self, sha256, sid) -> Optional[str]:
+        if not SHA256_REGEX.match(sha256):
+            # If the SHA256 is not valid, we cannot download the file
+            self.log.error(f"[{sid}] Invalid SHA256 provided: {sha256}")
+            self.status = STATUSES.ERROR_FOUND
+            return None
+
         self.status = STATUSES.DOWNLOADING_FILE
         received_file_sha256 = ''
         file_path = None
