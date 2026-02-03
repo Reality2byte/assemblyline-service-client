@@ -238,6 +238,13 @@ class TaskHandler(ServerBase):
                 self.stop()
                 return
 
+            # Check if service is declared as ready
+            while not os.path.exists(SERVICE_READY_PATH):
+                self.log.info("Waiting for service to be declared as ready...")
+                time.sleep(5)
+            else:
+                self.log.info("Service is declared as ready. Continuing...")
+
             self.task = self.get_task()
             if not self.task:
                 continue
@@ -339,13 +346,6 @@ class TaskHandler(ServerBase):
 
         # Update service manifest with data received from service server
         self.update_service_manifest(r['service_config'])
-
-        # Check if service is declared as ready
-        while not os.path.exists(SERVICE_READY_PATH):
-            self.log.info("Waiting for service to be declared as ready...")
-            time.sleep(5)
-
-        self.log.info("Service is declared as ready. Continuing...")
 
         # Connect to the different name pipes
         self.connect_pipes()
